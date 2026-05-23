@@ -1,0 +1,48 @@
+name: Add bonus win to kitty
+
+on:
+  workflow_dispatch:
+    inputs:
+      amount_nzd:
+        description: 'Cash amount to add (NZD). Use negative for corrections, e.g. -5 to remove 5 NZD.'
+        required: true
+        type: string
+      note:
+        description: 'Optional note (e.g. "Draw 2588 bonus Div 7")'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lotto-totals
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Update totals
+        run: python add_bonus_win.py "${{ inputs.amount_nzd }}" "${{ inputs.note }}"
+
+      - name: Commit
+        run: |
+          if [ -n "$(git status --porcelain totals.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add totals.json
+            note="${{ inputs.note }}"
+            git commit -m "kitty: ${{ inputs.amount_nzd }} NZD adjustment${note:+ ($note)}"
+            git push
+          else
+            echo "No change to totals.json"
+          fi

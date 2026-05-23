@@ -1,0 +1,10 @@
+{
+  "syndicate_name": "My syndicate",
+  "cost_per_draw_nzd": 1.50,
+  "kitty_split_ways": 3,
+  "since_date": "2099-01-01",
+  "lines": [
+    {"label": "A", "lotto": [1, 2, 3, 4, 5, 6],  "powerball": 1},
+    {"label": "B", "lotto": [7, 8, 9, 10, 11, 12], "powerball": 2}
+  ]
+}
