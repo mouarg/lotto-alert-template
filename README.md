@@ -1,5 +1,7 @@
 # lotto-alert-template
 
+![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)
+
 Personal WhatsApp alerts for NZ Lotto + Powerball syndicate wins. Runs entirely on GitHub Actions — no servers, no laptop dependency, no recurring costs.
 
 After every Wed + Sat draw, a workflow checks your syndicate's lines against the official MyLotto results and sends a WhatsApp. A Sunday heartbeat sends a weekly summary so you can confirm the system is alive.
