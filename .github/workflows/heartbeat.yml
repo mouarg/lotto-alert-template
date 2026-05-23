@@ -1,0 +1,38 @@
+name: Weekly heartbeat
+
+on:
+  schedule:
+    # Sat 20:00 UTC = Sun 08:00 NZST (winter) / Sun 09:00 NZDT (summer)
+    # Runs ~10h after the latest Sat draw check, well after results post.
+    - cron: "0 20 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lotto-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Send heartbeat
+        env:
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          CALLMEBOT_PHONE_2: ${{ secrets.CALLMEBOT_PHONE_2 }}
+          CALLMEBOT_APIKEY_2: ${{ secrets.CALLMEBOT_APIKEY_2 }}
+          CALLMEBOT_PHONE_3: ${{ secrets.CALLMEBOT_PHONE_3 }}
+          CALLMEBOT_APIKEY_3: ${{ secrets.CALLMEBOT_APIKEY_3 }}
+          CALLMEBOT_PHONE_4: ${{ secrets.CALLMEBOT_PHONE_4 }}
+          CALLMEBOT_APIKEY_4: ${{ secrets.CALLMEBOT_APIKEY_4 }}
+        run: python heartbeat.py
