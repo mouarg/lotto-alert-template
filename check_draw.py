@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """Run after each NZ Lotto draw. Sends WhatsApp every draw (win or no-win).
 
 Credentials: reads CALLMEBOT_PHONE and CALLMEBOT_APIKEY from environment.

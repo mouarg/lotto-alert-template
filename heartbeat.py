@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """Weekly heartbeat: confirms the system is alive and sends a P&L digest.
 
 Runs Sunday morning NZ time. Pulls the past 7 days from the MyLotto API,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """Add (or subtract) a manual adjustment to the lifetime kitty in totals.json.
 
 Used for tracking wins from bonus-ticket replay lines that the main script
