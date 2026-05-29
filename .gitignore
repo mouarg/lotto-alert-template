@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 .callmebot_config.json
+
+# Private syndicate config — built at runtime from the CONFIG_JSON secret in CI.
+config.json

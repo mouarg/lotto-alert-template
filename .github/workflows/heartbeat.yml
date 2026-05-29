@@ -16,14 +16,27 @@ concurrency:
 
 jobs:
   heartbeat:
+    # Skip the scheduled run in the template repo itself; runs normally in repos
+    # created from the template (which have a different repository name).
+    if: github.repository != 'mouarg/lotto-alert-template'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Write config.json from secret
+        env:
+          CONFIG_JSON: ${{ secrets.CONFIG_JSON }}
+        run: |
+          if [ -z "$CONFIG_JSON" ]; then
+            echo "::error::CONFIG_JSON secret is not set. Add your syndicate config.json content as a repo secret named CONFIG_JSON."
+            exit 1
+          fi
+          printf '%s' "$CONFIG_JSON" > config.json
 
       - name: Send heartbeat
         env:
