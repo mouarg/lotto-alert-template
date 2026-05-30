@@ -59,9 +59,19 @@ jobs:
           git add seen_draws.json totals.json draws.csv alert.log 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No state changes to commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "state: draw checked at $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
+            exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "state: draw checked at $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Retry-on-conflict loop: if another concurrent run pushed first,
+          # rebase our commit on top of their changes and retry.
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push attempt $attempt rejected; pulling and rebasing..."
+            git pull --rebase origin main || exit 1
+          done
+          echo "push still failing after 3 attempts"
+          exit 1
