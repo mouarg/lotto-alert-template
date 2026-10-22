@@ -57,7 +57,9 @@ def recent_draws(days=WEEK_DAYS):
 def send_whatsapp(msg):
     # Delegate to check_draw.send_whatsapp which handles multi-recipient logic
     from check_draw import send_whatsapp as _send
-    return _send(msg)
+    _, errors = _send(msg)
+    if errors:
+        raise RuntimeError("CallMeBot send failures: " + " | ".join(errors))
 
 
 def main():

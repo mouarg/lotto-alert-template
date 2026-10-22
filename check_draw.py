@@ -11,6 +11,7 @@ import csv
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ SEEN_PATH = SCRIPT_DIR / "seen_draws.json"
 TOTALS_PATH = SCRIPT_DIR / "totals.json"
 DRAWS_CSV_PATH = SCRIPT_DIR / "draws.csv"
 LOG_PATH = SCRIPT_DIR / "alert.log"
+SENT_PATH = SCRIPT_DIR / "sent.json"   # in-flight: {draw: [recipient ids sent]}
 
 DRAWS_CSV_HEADER = [
     "draw", "date", "day",
@@ -273,7 +275,10 @@ def format_nowin_message(draw):
 
 
 def _recipients():
-    """Return list of (phone, apikey) tuples from env vars.
+    """Return list of (rid, phone, apikey) tuples from env vars.
+
+    rid is a stable recipient id ("1" for the unsuffixed pair, else the suffix
+    number), so sent.json stays valid if a middle recipient is removed.
 
     Supports unlimited recipients via numbered suffixes:
       CALLMEBOT_PHONE   + CALLMEBOT_APIKEY     (primary)
@@ -286,27 +291,38 @@ def _recipients():
         phone = (os.environ.get(f"CALLMEBOT_PHONE{suffix}") or "").strip().lstrip("﻿")
         apikey = (os.environ.get(f"CALLMEBOT_APIKEY{suffix}") or "").strip().lstrip("﻿")
         if phone and apikey:
-            out.append((phone, apikey))
+            out.append((suffix.lstrip("_") or "1", phone, apikey))
     return out
 
 
-def send_whatsapp(msg):
+def send_whatsapp(msg, already_sent=()):
+    """Send to every recipient not in already_sent.
+
+    Returns (sent_ids, errors). Errors carry only recipient id and status/
+    exception type, never the URL, phone or key.
+    """
     recipients = _recipients()
     if not recipients:
         raise RuntimeError("CALLMEBOT_PHONE and CALLMEBOT_APIKEY must be set in environment")
-    errors = []
-    for phone, apikey in recipients:
+    sent, errors = [], []
+    for rid, phone, apikey in recipients:
+        if rid in already_sent:
+            continue
         url = ("https://api.callmebot.com/whatsapp.php"
-               f"?phone={phone}&text={urllib.parse.quote(msg)}&apikey={apikey}")
+               f"?phone={urllib.parse.quote(phone)}&text={urllib.parse.quote(msg)}"
+               f"&apikey={urllib.parse.quote(apikey)}")
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
                 body = r.read().decode("utf-8", errors="replace")
                 if r.status != 200 or ("Message queued" not in body and "ERROR" in body):
-                    errors.append(f"recipient {phone[-4:]}: status={r.status} body={body[:200]}")
+                    errors.append(f"recipient {rid}: status={r.status}")
+                else:
+                    sent.append(rid)
+        except urllib.error.HTTPError as e:
+            errors.append(f"recipient {rid}: status={e.code}")
         except Exception as e:
-            errors.append(f"recipient {phone[-4:]}: {e}")
-    if errors:
-        raise RuntimeError("CallMeBot send failures: " + " | ".join(errors))
+            errors.append(f"recipient {rid}: {type(e).__name__}")
+    return sent, errors
 
 
 def load_seen():
@@ -320,6 +336,22 @@ def load_seen():
 
 def save_seen(seen):
     SEEN_PATH.write_text(json.dumps(sorted(seen)))
+
+
+def load_sent():
+    if SENT_PATH.exists():
+        try:
+            return json.loads(SENT_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def save_sent(sent):
+    if sent:
+        SENT_PATH.write_text(json.dumps(sent, sort_keys=True))
+    elif SENT_PATH.exists():
+        SENT_PATH.unlink()
 
 
 def update_totals(draw, hits):
@@ -418,25 +450,40 @@ def main():
     n = draw["lotto"]["drawNumber"]
     ddate = draw["lotto"]["drawDate"]
     seen = load_seen()
+    key = str(n)
+    # Keyed by draw so a stale entry from an earlier draw can't suppress this one.
+    sent = {k: v for k, v in load_sent().items() if k == key and n not in seen}
     if n in seen:
+        save_sent(sent)
         log(f"Draw #{n} ({ddate}) already processed; skipping.")
         return
 
     hits = score_draw(draw)
-    update_totals(draw, hits)        # update totals first so message footer + CSV row both have current kitty
-    append_to_draws_csv(draw, hits)  # log this draw to the per-draw CSV ledger
+    if key not in sent:
+        # First attempt only: on a retry totals + CSV were already committed.
+        update_totals(draw, hits)        # before the message so its footer has current kitty
+        append_to_draws_csv(draw, hits)
+        sent[key] = []
+        save_sent(sent)
 
     msg = format_win_message(draw, hits) if hits else format_nowin_message(draw)
     try:
-        send_whatsapp(msg)
-        kind = f"{len(hits)} hit(s)" if hits else "no wins"
-        log(f"Draw #{n} ({ddate}): {kind} - WhatsApp sent.")
+        newly_sent, errors = send_whatsapp(msg, already_sent=set(sent[key]))
     except Exception as e:
-        log(f"Draw #{n} ({ddate}): SEND FAILED: {e}")
+        log(f"Draw #{n} ({ddate}): SEND FAILED: {type(e).__name__}: {e}")
+        sys.exit(2)
+    sent[key] = sorted(set(sent[key]) | set(newly_sent))
+    save_sent(sent)
+
+    kind = f"{len(hits)} hit(s)" if hits else "no wins"
+    if errors:
+        log(f"Draw #{n} ({ddate}): {kind} - sent to {sent[key]}, PENDING: {' | '.join(errors)}")
         sys.exit(2)
 
+    log(f"Draw #{n} ({ddate}): {kind} - WhatsApp sent to {sent[key]}.")
     seen.add(n)
     save_seen(seen)
+    save_sent({})
 
 
 if __name__ == "__main__":

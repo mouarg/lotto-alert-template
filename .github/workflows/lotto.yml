@@ -55,8 +55,10 @@ jobs:
         run: python check_draw.py
 
       - name: Commit updated state
+        if: ${{ !cancelled() }}   # also after a partial send, so sent.json reaches the retry
         run: |
           git add seen_draws.json totals.json draws.csv alert.log 2>/dev/null || true
+          git add -A -- sent.json 2>/dev/null || true   # stages create or delete
           if git diff --cached --quiet; then
             echo "No state changes to commit."
             exit 0
